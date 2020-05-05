@@ -1,7 +1,9 @@
 import * as THREE from "three";
-import { randomColor } from "./util/color";
+import { RandomColorDistribution } from "./util/color";
+import { Engine, Entity } from "./engine/ecs";
+import { TransformComponent, RenderSystem } from "./systems";
 
-const quartPi = Math.PI * 0.5;
+const halfPi = Math.PI * 0.5;
 
 class InputAdapter {
     w = false;
@@ -62,30 +64,44 @@ class InputAdapter {
 
 class Game {
 
-    private readonly scene: THREE.Scene;
-    private readonly camera: THREE.PerspectiveCamera;
+    readonly renderer: THREE.WebGLRenderer;
+    readonly scene: THREE.Scene;
+    readonly camera: THREE.PerspectiveCamera;
+    readonly input: InputAdapter;
+    
     private actors: THREE.Object3D[];
     private light: THREE.Light;
-    private input: InputAdapter;
+
+    private engine: Engine;
+    private player: Entity;
 
     constructor() {
+        this.renderer = new THREE.WebGLRenderer();
         this.scene = new THREE.Scene();
         this.camera = new THREE.PerspectiveCamera(75, 1, 0.1, 1000);
+        // this.camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 1000);
         this.actors = [];
         this.input = new InputAdapter();
+
+        this.engine = new Engine();
+        this.engine.addSystem(new RenderSystem(this.renderer, this.scene, this.camera));
+        this.player = this.engine
+            .createEntity()
+            .addComponent(new TransformComponent(new THREE.Vector3));
 
         const geometry = new THREE.BoxGeometry();
         const material = new THREE.MeshPhongMaterial({ color: 0x00ff00 });
         const cube = new THREE.Mesh(geometry, material);
-        // this.addActor(cube);
+        this.addActor(cube);
 
         this.light = new THREE.PointLight(0xFFFFFF, 1);
         this.light.position.set(-1, 2, 4);
         this.scene.add(this.light);
 
+        const colorGen = new RandomColorDistribution();
         for (let i = -10; i < 10; ++i) {
-            this.addActor(new Wall(-2, 0, i).object);
-            this.addActor(new Wall(2, 0, i).object);
+            this.addActor(createWall(-2, 0, i, colorGen.nextColorHex()));
+            this.addActor(createWall(2, 0, i, colorGen.nextColorHex()));
         }
         const ax = new THREE.AxesHelper(0.1);
         ax.position.y = -0.5;
@@ -98,6 +114,7 @@ class Game {
     updateSize(width: number, height: number) {
         this.camera.aspect = width / height;
         this.camera.updateProjectionMatrix();
+        this.renderer.setSize(width, height);
     }
 
     mouseMoved(x: number, y: number) {
@@ -108,6 +125,7 @@ class Game {
     tick() {
         this.handleInput();
         this.light.position.set(this.camera.position.x, this.camera.position.y, this.camera.position.z);
+
         // this.actors.forEach(obj => {
         //     obj.rotation.x += 0.01;
         //     obj.rotation.y += 0.01;
@@ -125,28 +143,34 @@ class Game {
         //         a.position.z = -10;
         //     }
         // });
+
+        this.engine.tick();
     }
 
     private handleInput() {
         const mPerTick = 0.05;
         const rotPerTick = 0.01;
-        const yCos = Math.cos(this.camera.rotation.y + quartPi);
-        const ySin = Math.sin(this.camera.rotation.y + quartPi);
+        const yCos = Math.cos(this.camera.rotation.y + halfPi);
+        const ySin = Math.sin(this.camera.rotation.y + halfPi);
         if (this.input.w) {
-            this.camera.position.z -= mPerTick * ySin;
-            this.camera.position.x += mPerTick * yCos;
+            this.camera.translateZ(-mPerTick);
+            // this.camera.position.z -= mPerTick * ySin;
+            // this.camera.position.x += mPerTick * yCos;
         }
         if (this.input.s) {
-            this.camera.position.z += mPerTick * ySin;
-            this.camera.position.x -= mPerTick * yCos;
+            this.camera.translateZ(mPerTick);
+            // this.camera.position.z += mPerTick * ySin;
+            // this.camera.position.x -= mPerTick * yCos;
         }
         if (this.input.a) {
-            this.camera.position.x -= mPerTick * ySin;
-            this.camera.position.z += mPerTick * yCos;
+            this.camera.translateX(-mPerTick);
+            // this.camera.position.x -= mPerTick * ySin;
+            // this.camera.position.z += mPerTick * yCos;
         }
         if (this.input.d) {
-            this.camera.position.x += mPerTick * ySin;
-            this.camera.position.z -= mPerTick * yCos;
+            this.camera.translateX(mPerTick);
+            // this.camera.position.x += mPerTick * ySin;
+            // this.camera.position.z -= mPerTick * yCos;
         }
         if (this.input.ctrl) {
             this.camera.position.y -= mPerTick;
@@ -161,10 +185,10 @@ class Game {
             this.camera.rotateY(-rotPerTick);
         }
         if (this.input.up) {
-            // this.camera.rotateX(rotPerTick);
+            this.camera.rotateX(rotPerTick);
         }
         if (this.input.down) {
-            // this.camera.rotateX(-rotPerTick);
+            this.camera.rotateX(-rotPerTick);
         }
     }
 
@@ -172,43 +196,14 @@ class Game {
         this.actors.push(obj);
         this.scene.add(obj);
     }
-
-    getScene() {
-        return this.scene;
-    }
-
-    getCamera() {
-        return this.camera;
-    }
-
-    getInputAdapter() {
-        return this.input;
-    }
 }
 
-interface Renderable {
-    readonly object: THREE.Object3D;
-    x: number;
-    y: number;
-    z: number;
-}
-
-class Wall implements Renderable {
-    readonly object: THREE.Object3D;
-    x: number;
-    y: number;
-    z: number;
-
-    constructor(x: number, y: number, z: number) {
-        this.x = x;
-        this.y = y;
-        this.z = z;
-
-        const geometry = new THREE.PlaneGeometry(2, 1);
-        const material = new THREE.MeshPhongMaterial({ color: randomColor(), side: THREE.DoubleSide });
-        this.object = new THREE.Mesh(geometry, material);
-        this.object.position.set(x, y, z);
-    }
+function createWall(x: number, y: number, z: number, color: string): THREE.Object3D {
+    const geometry = new THREE.PlaneGeometry(2, 1);
+    const material = new THREE.MeshPhongMaterial({ color, side: THREE.DoubleSide });
+    const object = new THREE.Mesh(geometry, material);
+    object.position.set(x, y, z);
+    return object;
 }
 
 export { Game };
