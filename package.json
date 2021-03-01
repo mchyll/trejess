@@ -10,7 +10,7 @@
   "private": true,
   "main": "index.js",
   "dependencies": {
-    "three": "^0.115.0"
+    "three": "^0.125.0"
   },
   "devDependencies": {
     "ts-loader": "^7.0.0",
