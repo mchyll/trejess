@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { RandomColorDistribution } from "./util/color";
 import { Engine, Entity } from "./engine/ecs";
-import { TransformComponent, RenderSystem } from "./systems";
+import { Object3DComponent, RenderSystem } from "./systems";
 
 const halfPi = Math.PI * 0.5;
 
@@ -69,44 +69,40 @@ class Game {
     readonly camera: THREE.PerspectiveCamera;
     readonly input: InputAdapter;
     
-    private actors: THREE.Object3D[];
     private light: THREE.Light;
 
     private engine: Engine;
-    private player: Entity;
 
     constructor() {
         this.renderer = new THREE.WebGLRenderer();
         this.scene = new THREE.Scene();
         this.camera = new THREE.PerspectiveCamera(75, 1, 0.1, 1000);
         // this.camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 1000);
-        this.actors = [];
         this.input = new InputAdapter();
 
         this.engine = new Engine();
         this.engine.addSystem(new RenderSystem(this.renderer, this.scene, this.camera));
-        this.player = this.engine
-            .createEntity()
-            .addComponent(new TransformComponent(new THREE.Vector3));
+        this.addObject3DEntity(new THREE.Object3D);
 
         const geometry = new THREE.BoxGeometry();
         const material = new THREE.MeshPhongMaterial({ color: 0x00ff00 });
         const cube = new THREE.Mesh(geometry, material);
-        this.addActor(cube);
+        this.addObject3DEntity(cube);
 
         this.light = new THREE.PointLight(0xFFFFFF, 1);
         this.light.position.set(-1, 2, 4);
-        this.scene.add(this.light);
+        this.addObject3DEntity(this.light);
 
         const colorGen = new RandomColorDistribution();
         for (let i = -10; i < 10; ++i) {
-            this.addActor(createWall(-2, 0, i, colorGen.nextColorHex()));
-            this.addActor(createWall(2, 0, i, colorGen.nextColorHex()));
+            this.addObject3DEntity(createWall(-2, 0, i, colorGen.nextColorHex()));
+            this.addObject3DEntity(createWall(2, 0, i, colorGen.nextColorHex()));
         }
+
         const ax = new THREE.AxesHelper(0.1);
         ax.position.y = -0.5;
         ax.position.z = -5;
-        this.addActor(ax);
+        this.addObject3DEntity(ax);
 
         this.camera.position.z = 0;
     }
@@ -192,9 +188,10 @@ class Game {
         }
     }
 
-    addActor(obj: THREE.Object3D) {
-        this.actors.push(obj);
-        this.scene.add(obj);
+    addObject3DEntity(obj: THREE.Object3D): Entity {
+        return this.engine
+            .createEntity()
+            .addComponent(new Object3DComponent(obj));
     }
 }
 

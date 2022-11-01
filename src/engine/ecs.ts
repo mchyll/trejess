@@ -31,6 +31,7 @@ class Engine {
             const systemEntityIdx = system.entities.indexOf(entity);
             if (systemEntityIdx >= 0) {
                 system.entities.splice(systemEntityIdx, 1);
+                system.entityRemoved(entity);
             }
         }
     }
@@ -41,6 +42,7 @@ class Engine {
             if (system.componentTypeIds.every(c => entity.components[c] !== null)) {
                 console.log("Adding entity %s to system %s", entity.id, system.constructor.name);
                 system.entities.push(entity);
+                system.entityAdded(entity);
                 entity.systemMemberships.push(system);
             }
         }
@@ -54,6 +56,7 @@ class Engine {
                 const entityIdx = system.entities.indexOf(entity);
                 if (entityIdx >= 0) {
                     system.entities.splice(entityIdx, 1);
+                    system.entityRemoved(entity);
                 }
                 entity.systemMemberships.splice(systemIdx, 1);
             }
@@ -138,6 +141,12 @@ abstract class System {
     }
 
     abstract process(): void;
+
+    entityAdded(entitiy: Entity): void {
+    }
+
+    entityRemoved(entitiy: Entity): void {
+    }
 }
 
 export { Engine, Entity, Component, ComponentMapper, System };
